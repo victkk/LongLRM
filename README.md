@@ -6,12 +6,6 @@ This repository contains a self-reimplemented version of **Long-LRM**, including
 
 ---
 
-## Updates
-
-We have just released the Long-LRM evaluation results on DL3DV-140 ([download here](https://huggingface.co/arthurhero/llrm_stuff/resolve/main/misc/dl3dv_i540_32input_8target.zip)), including the rendered target views, per-view metrics, and interpolated input trajectory videos, for fellow reearchers to use as a baseline. The model is re-trained with the code in this repository on DL3DV-10K (with DL3DV-140 filtered out) and achieves a mean PSNR of 24.21. Please note that except for the first inference mini-batch, subsequent inference runs complete in about 1 second.
-
----
-
 ## Tentative TO-DO List
 
 - [x] Sample config files
@@ -20,7 +14,22 @@ We have just released the Long-LRM evaluation results on DL3DV-140 ([download he
 - [x] Long-LRM evaluation results on DL3DV-140 for baseline comparison
 - [ ] 2D GS support
 - [ ] Post-prediction optimization
-- [ ] Pre-trained model weights (we are working on it)
+- [x] Pre-trained model weights
+
+---
+
+## Pre-trained model weights
+Usage: put the .pt file in a folder with the same name as your config, and then put the folder into the checkpoints folder
+- DL3DV 32 960x540 inputs (Table 1): [download here](https://huggingface.co/arthurhero/llrm_checkpoints/resolve/main/dl3dv_i540_32input_8target/checkpoint_000010000.pt)
+
+Copyright 2025 Adobe Inc.
+
+Model weights are licensed from Adobe Inc. under the Adobe Research License.
+
+---
+
+## Long-LRM evaluation results
+We offer the Long-LRM evaluation results on DL3DV-140 ([download here](https://huggingface.co/arthurhero/llrm_stuff/resolve/main/misc/dl3dv_i540_32input_8target.zip)), including the rendered target views, per-view metrics, and interpolated input trajectory videos, for fellow reearchers to use as a baseline. The model is re-trained with the code in this repository on DL3DV-10K (with DL3DV-140 filtered out) and achieves a mean PSNR of 24.21. Please note that except for the first inference mini-batch, subsequent inference runs complete in about 1 second. 
 
 ---
 
