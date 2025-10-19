@@ -111,10 +111,12 @@ class Dataset(Dataset):
                 assert target_frame_select_type == 'uniform_every'
             target_has_input = self.config.data.target_has_input
             min_frame_dist = self.config.data.min_frame_dist
-            max_frame_dist = self.config.data.max_frame_dist
+            max_frame_dist = self.config.data.get("max_frame_dist", "all")
             if min_frame_dist == "all":
                 min_frame_dist = len(frames) - 1
                 max_frame_dist = min_frame_dist
+            if max_frame_dist == "all":
+                max_frame_dist = len(frames) - 1
             min_frame_dist = min(min_frame_dist, len(frames) - 1)
             max_frame_dist = min(max_frame_dist, len(frames) - 1)
             assert min_frame_dist <= max_frame_dist

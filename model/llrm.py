@@ -190,7 +190,9 @@ class LongLRM(nn.Module):
         if self.num_global_tokens > 0:
             self.global_token_init = nn.Parameter(torch.randn(1, self.num_global_tokens, self.dim_start))
             nn.init.trunc_normal_(self.global_token_init, std=0.02)
-        self.tokenizer = nn.Linear(input_dim * self.patch_size ** 2, self.dim_start, bias=False)
+        self.tokenizer = nn.Sequential(
+            nn.Linear(input_dim * self.patch_size ** 2, self.dim_start, bias=False)
+        )
         self.tokenizer.apply(_init_weights)
         self.input_layernorm = nn.LayerNorm(self.dim_start, bias=False)
         self.processor = Processor(config)
