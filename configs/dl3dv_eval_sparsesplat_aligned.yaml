@@ -56,17 +56,17 @@ data_eval:
 
 model:
   patch_size: 8
-  dim: [512, 1024]  # Feature dimensions
+  dim: [256, 1024]  # Feature dimensions (updated to match checkpoint)
   num_layers: 24
   block_type: "tmtmtmtmtmtmtmtmtmtmtmtm"  # Alternating transformer and mamba2
-  merge_layers: [12]  # Merge at layer 12
-  num_global_tokens: 128
+  merge_layers: [8]  # Merge at layer 8 (updated to match checkpoint)
+  num_global_tokens: 2  # Updated to match checkpoint (was 128)
 
   transformer:
     head_dim: 64
 
   mamba2:
-    d_state: 128
+    d_state: 256  # Updated to match checkpoint (was 128)
 
   gaussians:
     sh_degree: 2
