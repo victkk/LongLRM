@@ -274,8 +274,6 @@ class LongLRM(nn.Module):
         scene_name = input_dict.get("scene_name", None)
         use_checkpoint = input_dict.get("use_checkpoint", True)
 
-
-        inference_start = time.time()
         B, V, _, H, W = input_images.shape
 
         # Embed camera info
@@ -298,9 +296,13 @@ class LongLRM(nn.Module):
         patch_size = self.patch_size
         hh = H // patch_size
         ww = W // patch_size
-        input_image_cam = rearrange(input_image_cam, 
-                                    "b v (hh ph ww pw) d -> b (v hh ww) (ph pw d)", 
+        input_image_cam = rearrange(input_image_cam,
+                                    "b v (hh ph ww pw) d -> b (v hh ww) (ph pw d)",
                                     hh=hh, ww=ww, ph=patch_size, pw=patch_size)
+
+        # Start timing: Model inference begins here (tokenization -> Gaussian generation)
+        torch.cuda.synchronize()
+        inference_start = time.time()
 
         # Tokenize the input images
         image_tokens = self.tokenizer(input_image_cam) # (B, V*hh*ww, D)
@@ -346,6 +348,9 @@ class LongLRM(nn.Module):
             "rotation": rotation.float(),
             "opacity": opacity.float()
         }
+
+        # End timing: 3D Gaussians generated (before pruning and rendering)
+        torch.cuda.synchronize()
         inference_time = time.time() - inference_start
 
         # GS Pruning
@@ -644,7 +649,9 @@ class LongLRM(nn.Module):
                 f.write(f"gaussian_usage, {gaussian_usage[i].item()}\n")
                 f.write(f"num_gaussians_total, {num_gaussians_total}\n")
                 f.write(f"num_gaussians_active, {num_gaussians_active}\n")
-                f.write(f"inference_time, {inference_time}\n")
+                # Inference time: pure model forward pass (tokenization -> Gaussian generation)
+                # Does NOT include: data loading, camera preprocessing, pruning, or rendering
+                f.write(f"model_inference_time_sec, {inference_time}\n")
                 f.close()
 
             # save images
