@@ -90,9 +90,13 @@ def convert_scene(input_scene_dir, output_scene_dir, image_subdir='images_8'):
         h = frame.get('h', transforms_data.get('h', 1080))
 
         # Get focal length
+        # Priority: frame-level > top-level > camera_angle_x > fallback
         if 'fl_x' in frame:
             fx = frame['fl_x']
             fy = frame.get('fl_y', fx)
+        elif 'fl_x' in transforms_data:
+            fx = transforms_data['fl_x']
+            fy = transforms_data.get('fl_y', fx)
         elif 'camera_angle_x' in transforms_data:
             camera_angle_x = transforms_data['camera_angle_x']
             fx = 0.5 * w / np.tan(0.5 * camera_angle_x)
@@ -102,8 +106,9 @@ def convert_scene(input_scene_dir, output_scene_dir, image_subdir='images_8'):
             fx = fy = w  # fallback
 
         # Get principal point
-        cx = frame.get('cx', w / 2.0)
-        cy = frame.get('cy', h / 2.0)
+        # Priority: frame-level > top-level > default (center)
+        cx = frame.get('cx', transforms_data.get('cx', w / 2.0))
+        cy = frame.get('cy', transforms_data.get('cy', h / 2.0))
 
         # Get transform matrix (c2w in Blender coordinates)
         transform_matrix = np.array(frame['transform_matrix'], dtype=np.float64)
