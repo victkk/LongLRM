@@ -119,9 +119,21 @@ def convert_scene(input_scene_dir, output_scene_dir, image_subdir='images_8'):
         # Convert c2w to w2c (Long-LRM uses w2c)
         w2c_opencv = np.linalg.inv(c2w_opencv)
 
+        # Update file_path to use correct image subdirectory
+        # Extract just the filename from the original path
+        original_file_path = frame['file_path']
+        if '/' in original_file_path or '\\' in original_file_path:
+            # Get just the filename
+            filename = original_file_path.split('/')[-1].split('\\')[-1]
+        else:
+            filename = original_file_path
+
+        # Construct new path with correct image subdirectory
+        new_file_path = f"{image_subdir}/{filename}"
+
         # Create output frame
         frame_output = {
-            'file_path': frame['file_path'],
+            'file_path': new_file_path,
             'w': int(w),
             'h': int(h),
             'fx': float(fx),
