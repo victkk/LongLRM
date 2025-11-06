@@ -629,13 +629,22 @@ class LongLRM(nn.Module):
             psnr = compute_psnr(renderings[i], target_images[i]) # (V,)
             ssim = compute_ssim(renderings[i], target_images[i]) # (V,)
             lpips = compute_lpips(renderings[i], target_images[i]) # (V,)
+
+            # Gaussian statistics
+            num_gaussians_total = gaussians["xyz"].shape[1]  # Total number after pruning
+            opacity_threshold = self.config.model.gaussians.get("opacity_threshold", 0.001)
+            opacity_sigmoid = gaussians["opacity"][i].sigmoid().squeeze(-1)  # (N,)
+            num_gaussians_active = (opacity_sigmoid > opacity_threshold).sum().item()
+
             with open(os.path.join(scene_dir, "metrics.csv"), "w") as f:
                 f.write("index, psnr, ssim, lpips\n")
                 for j in range(V):
                     f.write(f"{j}, {psnr[j].item()}, {ssim[j].item()}, {lpips[j].item()}\n")
                 f.write(f"mean, {psnr.mean().item()}, {ssim.mean().item()}, {lpips.mean().item()}\n")
                 f.write(f"gaussian_usage, {gaussian_usage[i].item()}\n")
-                f.write(f"inference_time, {inference_time}\n") 
+                f.write(f"num_gaussians_total, {num_gaussians_total}\n")
+                f.write(f"num_gaussians_active, {num_gaussians_active}\n")
+                f.write(f"inference_time, {inference_time}\n")
                 f.close()
 
             # save images

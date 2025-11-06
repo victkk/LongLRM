@@ -28,6 +28,19 @@ class Dataset(Dataset):
             if not data_path.startswith("/"):
                 self.data_path[i] = os.path.join(data_folder, data_path)
 
+        # Load SparseSplat evaluation index if specified
+        self.use_sparsesplat_index = self.config.data.get("use_sparsesplat_index", False)
+        self.index_dict = {}
+        if self.use_sparsesplat_index:
+            index_path = self.config.data.get("sparsesplat_index_path", None)
+            if index_path and os.path.exists(index_path):
+                with open(index_path, 'r') as f:
+                    self.index_dict = json.load(f)
+                print(f"Loaded SparseSplat index with {len(self.index_dict)} scenes")
+            else:
+                print(f"Warning: use_sparsesplat_index=True but index file not found: {index_path}")
+                self.use_sparsesplat_index = False
+
     def __len__(self):
         return len(self.data_path)
 
@@ -101,88 +114,98 @@ class Dataset(Dataset):
             scene_name = data_json['scene_name']
             frames = data_json['frames']
             image_base_dir = data_path.rsplit('/', 1)[0]
-     
-            # read config
-            input_frame_select_type = self.config.data.input_frame_select_type
-            target_frame_select_type = self.config.data.target_frame_select_type
-            num_input_frames = self.config.data.num_input_frames
-            num_target_frames = self.config.data.get("num_target_frames", 0)
-            if num_target_frames == 0:
-                assert target_frame_select_type == 'uniform_every'
-            target_has_input = self.config.data.target_has_input
-            min_frame_dist = self.config.data.min_frame_dist
-            max_frame_dist = self.config.data.get("max_frame_dist", "all")
-            if min_frame_dist == "all":
-                min_frame_dist = len(frames) - 1
-                max_frame_dist = min_frame_dist
-            if max_frame_dist == "all":
-                max_frame_dist = len(frames) - 1
-            min_frame_dist = min(min_frame_dist, len(frames) - 1)
-            max_frame_dist = min(max_frame_dist, len(frames) - 1)
-            assert min_frame_dist <= max_frame_dist
-            if target_has_input:
-                assert min_frame_dist >= max(num_input_frames, num_target_frames) - 1
+
+            # Check if using SparseSplat fixed indices for this scene
+            use_fixed_indices = self.use_sparsesplat_index and scene_name in self.index_dict
+
+            if use_fixed_indices:
+                # Use pre-defined indices from SparseSplat evaluation index
+                scene_indices = self.index_dict[scene_name]
+                input_frame_idx = scene_indices['context']  # e.g., [0, 19, 29, 33, 39, 49]
+                target_frame_idx = scene_indices['target']  # e.g., [0, 1, 2, ..., 49]
             else:
-                assert min_frame_dist >= num_input_frames + num_target_frames - 1
-            frame_dist = np.random.randint(min_frame_dist, max_frame_dist + 1)
-            shuffle_input_prob = self.config.data.get("shuffle_input_prob", 0.0)
-            shuffle_input = np.random.rand() < shuffle_input_prob
-            reverse_input_prob = self.config.data.get("reverse_input_prob", 0.0)
-            reverse_input = np.random.rand() < reverse_input_prob
-     
-            # get frame range
-            start_frame_idx = np.random.randint(0, len(frames) - frame_dist)
-            end_frame_idx = start_frame_idx + frame_dist
-            frame_idx = list(range(start_frame_idx, end_frame_idx + 1))
-     
-            # get target frames
-            if target_frame_select_type == 'random':
-                target_frame_idx = np.random.choice(frame_idx, num_target_frames, replace=False)
-            elif target_frame_select_type == 'uniform':
-                target_frame_idx = np.linspace(start_frame_idx, end_frame_idx, num_target_frames, dtype=int)
-            elif target_frame_select_type == 'uniform_every':
-                uniform_every = self.config.data.target_uniform_every
-                target_frame_idx = list(range(start_frame_idx, end_frame_idx + 1, uniform_every))
-                num_target_frames = len(target_frame_idx)
-            else:
-                raise NotImplementedError
-            target_frame_idx = sorted(target_frame_idx)
-     
-            # get input frames
-            if not target_has_input:
-                frame_idx = [x for x in frame_idx if x not in target_frame_idx]
-            if input_frame_select_type == 'random':
-                input_frame_idx = np.random.choice(frame_idx, num_input_frames, replace=False)
-            elif input_frame_select_type == 'uniform':
-                input_frame_idx = np.linspace(0, len(frame_idx) - 1, num_input_frames, dtype=int)
-                input_frame_idx = [frame_idx[i] for i in input_frame_idx]
-            elif input_frame_select_type == 'kmeans':
-                json_key = "fold_"+str(self.config.data.target_uniform_every)+"_kmeans_"+str(num_input_frames)+"_input"
-                if json_key in data_json:
-                    input_frame_idx = data_json[json_key]
+                # Original frame selection logic
+                # read config
+                input_frame_select_type = self.config.data.input_frame_select_type
+                target_frame_select_type = self.config.data.target_frame_select_type
+                num_input_frames = self.config.data.num_input_frames
+                num_target_frames = self.config.data.get("num_target_frames", 0)
+                if num_target_frames == 0:
+                    assert target_frame_select_type == 'uniform_every'
+                target_has_input = self.config.data.target_has_input
+                min_frame_dist = self.config.data.min_frame_dist
+                max_frame_dist = self.config.data.get("max_frame_dist", "all")
+                if min_frame_dist == "all":
+                    min_frame_dist = len(frames) - 1
+                    max_frame_dist = min_frame_dist
+                if max_frame_dist == "all":
+                    max_frame_dist = len(frames) - 1
+                min_frame_dist = min(min_frame_dist, len(frames) - 1)
+                max_frame_dist = min(max_frame_dist, len(frames) - 1)
+                assert min_frame_dist <= max_frame_dist
+                if target_has_input:
+                    assert min_frame_dist >= max(num_input_frames, num_target_frames) - 1
                 else:
-                    from sklearn.cluster import KMeans
-                    w2cs = np.stack([np.array(frames[i]["w2c"]) for i in frame_idx])
-                    c2ws = np.linalg.inv(w2cs)
-                    cam_poses = c2ws[:, :3, 3]
-                    cam_dirs = c2ws[:, :3, 2]
-                    pos_dirs = np.concatenate([cam_poses, cam_dirs], axis=1)
-                    cluster_centers = KMeans(n_clusters=num_input_frames, random_state=0, n_init="auto").fit(pos_dirs).cluster_centers_ # (num_input, 6)
-                    input_frame_idx = []
-                    for center in cluster_centers:
-                        dists = np.linalg.norm(pos_dirs - center, axis=1)
-                        input_frame_idx.append(frame_idx[np.argmin(dists)])
-                    data_json[json_key] = sorted(input_frame_idx)
-                    # save json
-                    with open(data_path, 'w') as f:
-                        json.dump(data_json, f, indent=4)
-            else:
-                raise NotImplementedError
-            input_frame_idx = sorted(input_frame_idx)
-            if reverse_input:
-                input_frame_idx = input_frame_idx[::-1]
-            if shuffle_input:
-                np.random.shuffle(input_frame_idx)
+                    assert min_frame_dist >= num_input_frames + num_target_frames - 1
+                frame_dist = np.random.randint(min_frame_dist, max_frame_dist + 1)
+                shuffle_input_prob = self.config.data.get("shuffle_input_prob", 0.0)
+                shuffle_input = np.random.rand() < shuffle_input_prob
+                reverse_input_prob = self.config.data.get("reverse_input_prob", 0.0)
+                reverse_input = np.random.rand() < reverse_input_prob
+
+                # get frame range
+                start_frame_idx = np.random.randint(0, len(frames) - frame_dist)
+                end_frame_idx = start_frame_idx + frame_dist
+                frame_idx = list(range(start_frame_idx, end_frame_idx + 1))
+
+                # get target frames
+                if target_frame_select_type == 'random':
+                    target_frame_idx = np.random.choice(frame_idx, num_target_frames, replace=False)
+                elif target_frame_select_type == 'uniform':
+                    target_frame_idx = np.linspace(start_frame_idx, end_frame_idx, num_target_frames, dtype=int)
+                elif target_frame_select_type == 'uniform_every':
+                    uniform_every = self.config.data.target_uniform_every
+                    target_frame_idx = list(range(start_frame_idx, end_frame_idx + 1, uniform_every))
+                    num_target_frames = len(target_frame_idx)
+                else:
+                    raise NotImplementedError
+                target_frame_idx = sorted(target_frame_idx)
+
+                # get input frames
+                if not target_has_input:
+                    frame_idx = [x for x in frame_idx if x not in target_frame_idx]
+                if input_frame_select_type == 'random':
+                    input_frame_idx = np.random.choice(frame_idx, num_input_frames, replace=False)
+                elif input_frame_select_type == 'uniform':
+                    input_frame_idx = np.linspace(0, len(frame_idx) - 1, num_input_frames, dtype=int)
+                    input_frame_idx = [frame_idx[i] for i in input_frame_idx]
+                elif input_frame_select_type == 'kmeans':
+                    json_key = "fold_"+str(self.config.data.target_uniform_every)+"_kmeans_"+str(num_input_frames)+"_input"
+                    if json_key in data_json:
+                        input_frame_idx = data_json[json_key]
+                    else:
+                        from sklearn.cluster import KMeans
+                        w2cs = np.stack([np.array(frames[i]["w2c"]) for i in frame_idx])
+                        c2ws = np.linalg.inv(w2cs)
+                        cam_poses = c2ws[:, :3, 3]
+                        cam_dirs = c2ws[:, :3, 2]
+                        pos_dirs = np.concatenate([cam_poses, cam_dirs], axis=1)
+                        cluster_centers = KMeans(n_clusters=num_input_frames, random_state=0, n_init="auto").fit(pos_dirs).cluster_centers_ # (num_input, 6)
+                        input_frame_idx = []
+                        for center in cluster_centers:
+                            dists = np.linalg.norm(pos_dirs - center, axis=1)
+                            input_frame_idx.append(frame_idx[np.argmin(dists)])
+                        data_json[json_key] = sorted(input_frame_idx)
+                        # save json
+                        with open(data_path, 'w') as f:
+                            json.dump(data_json, f, indent=4)
+                else:
+                    raise NotImplementedError
+                input_frame_idx = sorted(input_frame_idx)
+                if reverse_input:
+                    input_frame_idx = input_frame_idx[::-1]
+                if shuffle_input:
+                    np.random.shuffle(input_frame_idx)
      
             random_crop_ratio = None
             target_frames = [frames[i] for i in target_frame_idx]
